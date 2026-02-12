@@ -1,4 +1,5 @@
 # app.py
+import os
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -21,8 +22,12 @@ app.add_middleware(
 )
 
 # ================= DATABASE =================
-DATABASE_URL = "sqlite:///./app.db"
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+# Use PostgreSQL from Railway ENV variable
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if not DATABASE_URL:
+    raise Exception("DATABASE_URL environment variable not set!")
+
+engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 Base = declarative_base()
 
@@ -58,7 +63,7 @@ def verify_password(password: str, hashed: str):
     return pwd_context.verify(password, hashed)
 
 # ================= JWT CONFIG =================
-SECRET_KEY = "CHANGE_THIS_SECRET_KEY"
+SECRET_KEY = os.environ.get("SECRET_KEY", "CHANGE_THIS_SECRET_KEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 def create_access_token(data: dict):
@@ -159,10 +164,8 @@ def get_movie_by_title(title: str, db: Session = Depends(get_db)):
 # ================= ADD MOVIE (for Angular) =================
 @app.post("/movies/add", response_model=MovieSchema)
 def add_movie(movie: MovieSchema, db: Session = Depends(get_db)):
-    # تحقق إن الفيلم موجود مسبقًا
     if db.query(Movie).filter(Movie.title == movie.title).first():
         raise HTTPException(status_code=400, detail="Movie already exists")
-
     new_movie = Movie(
         title=movie.title,
         year=movie.year,
